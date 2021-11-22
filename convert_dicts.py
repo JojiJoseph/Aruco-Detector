@@ -25,4 +25,4 @@ for key in tqdm(predefined_dicts.keys()):
         img = np.rot90(img)
         new_dict[tuple(img.ravel())] = (i,3)
     with open(os.path.join("./dict",key + ".pickle"), "wb") as f:
-        pickle.dump(new_dict, f)
+        pickle.dump(((dict.markerSize+2), n_markers, new_dict), f)

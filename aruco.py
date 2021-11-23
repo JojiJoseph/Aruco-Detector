@@ -15,11 +15,11 @@ class Aruco:
 
         # Create edge image using adaptive threshold
         img_thresh = cv2.adaptiveThreshold(
-            img_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 0)
+            img_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 2)
         contours, _ = cv2.findContours(
             img_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         candidate_rects = []
-        
+
         for cnt in contours:
             cnt = cv2.approxPolyDP(cnt, epsilon=5, closed=True)
             # Detect rectange of decent size
@@ -39,11 +39,49 @@ class Aruco:
 
             # If it is valid then add it to results
             if tuple(img_out.ravel().tolist()) in self.dict:
+                res, rot = self.dict[tuple(img_out.ravel())]
+                if rot == 1:
+                    rect = np.concatenate([rect[1:], rect[0:1]], axis=0)
+                if rot == 2:
+                    rect = np.concatenate([rect[2:], rect[0:2]], axis=0)
+                if rot == 3:
+                    rect = np.concatenate([rect[3:], rect[0:3]], axis=0)
                 result.append(
-                    [self.dict[tuple(img_out.ravel())][0],
+                    [res,
                      rect]
                 )
         return result
+
+    def estimate_pose_from_single_marker(self, corners, size, camera_matrix, dist_coeffs):
+        obj_pts = np.array(
+            [
+                [size/2, size/2, 0],
+                [-size/2, size/2, 0],
+                [-size/2, -size/2, 0],
+                [size/2, -size/2, 0]
+            ], dtype=np.float32
+        )
+
+        ret, rvec, tvec = cv2.solvePnP(obj_pts, corners.reshape(
+            (4, 2)).astype(float), camera_matrix, dist_coeffs)
+        return ret, rvec, tvec
+
+    def draw_axis(self, img, camera_matrix, dist_coeff, rvec, tvec, axis_size=0.4):
+
+        obj_pts = np.array(
+            [
+                [0, 0, 0],
+                [axis_size, 0, 0],
+                [0, axis_size, 0],
+                [0, 0, axis_size]
+            ], dtype=np.float32
+        )
+        points, _ = cv2.projectPoints(
+            obj_pts, rvec, tvec, cameraMatrix=camera_matrix, distCoeffs=dist_coeff)
+        points = points.astype(int).reshape((4, 2))
+        cv2.line(img, points[0], points[1], (0, 0, 255), 2)
+        cv2.line(img, points[0], points[2], (0, 255, 0), 2)
+        cv2.line(img, points[0], points[3], (255, 0, 0), 2)
 
 
 if __name__ == "__main__":
@@ -53,14 +91,23 @@ if __name__ == "__main__":
     aruco = Aruco("DICT_6X6_250")
     start = time.time()
     out = aruco.detect(img_gray)
-    end =  time.time()
+    end = time.time()
     print(end-start)
-
+    
+    camera_matrix = np.array([
+        [1430, 0, 480],
+        [0, 1430, 620],
+        [0, 0, 1]
+    ], dtype=float)
+    
     img_out = img.copy()
+    
     for id, corners in out:
         x, y = np.mean(corners.squeeze(), axis=0).astype(int)
-        cv2.polylines(img_out, [corners], True, (255,0,0), thickness=2)
-        img_out = cv2.drawMarker(img_out, (x, y), (0, 0, 255), thickness=2)
+        cv2.polylines(img_out, [corners], True, (255, 0, 0), thickness=2)
+        res, rvec, tvec = aruco.estimate_pose_from_single_marker(
+            corners, 1, camera_matrix, None)
+        aruco.draw_axis(img_out, camera_matrix, None, rvec, tvec)
     cv2.imshow("Input", img)
     cv2.imshow("Output", img_out)
     cv2.imwrite("./output_image.jpg", img_out)

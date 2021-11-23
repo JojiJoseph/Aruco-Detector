@@ -23,4 +23,4 @@ Input Image
 
 Output Image
 
-<img src="output_image.jpg">
+![Input image](output_image.jpg)

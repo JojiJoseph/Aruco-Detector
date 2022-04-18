@@ -5,24 +5,24 @@ import numpy as np
 
 
 class Aruco:
-    def __init__(self, dict_name="DICT_ARUCO_ORIGINAL") -> None:
+    def __init__(self, dict_name: str = "DICT_ARUCO_ORIGINAL") -> None:
         self.dict_name = dict_name
         with open(os.path.join("./dict", self.dict_name + ".pickle"), "rb") as f:
             self.marker_size, self.n_markers, self.dict = pickle.load(f)
 
-    def detect(self, img_gray):
+    def detect(self, img_gray, block_size=21, C=2):
         # Will return an array of (id, corners)
 
         # Create edge image using adaptive threshold
         img_thresh = cv2.adaptiveThreshold(
-            img_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 21, 2)
+            img_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, block_size, C)
         contours, _ = cv2.findContours(
             img_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         candidate_rects = []
 
         for cnt in contours:
             cnt = cv2.approxPolyDP(cnt, epsilon=5, closed=True)
-            # Detect rectange of decent size
+            # Detect rectangles of decent size
             if len(cnt) == 4 and cv2.contourArea(cnt) > 200:
                 candidate_rects.append(cnt)
 
@@ -93,15 +93,15 @@ if __name__ == "__main__":
     out = aruco.detect(img_gray)
     end = time.time()
     print(end-start)
-    
+
     camera_matrix = np.array([
         [1430, 0, 480],
         [0, 1430, 620],
         [0, 0, 1]
     ], dtype=float)
-    
+
     img_out = img.copy()
-    
+
     for id, corners in out:
         x, y = np.mean(corners.squeeze(), axis=0).astype(int)
         cv2.polylines(img_out, [corners], True, (255, 0, 0), thickness=2)
